@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		DC293609189702A20048CF66 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DC293608189702A20048CF66 /* Foundation.framework */; };
 		DC29360E189702A20048CF66 /* BoatMessaging.h in CopyFiles */ = {isa = PBXBuildFile; fileRef = DC29360D189702A20048CF66 /* BoatMessaging.h */; };
-		DC293610189702A20048CF66 /* BoatMessaging.m in Sources */ = {isa = PBXBuildFile; fileRef = DC29360F189702A20048CF66 /* BoatMessaging.m */; };
+		DC293610189702A20048CF66 /* BoatMessaging.m in Sources */ = {isa = PBXBuildFile; fileRef = DC29360F189702A20048CF66 /* BoatMessaging.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
 		DC293617189702A20048CF66 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DC293616189702A20048CF66 /* XCTest.framework */; };
 		DC293618189702A20048CF66 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DC293608189702A20048CF66 /* Foundation.framework */; };
 		DC29361A189702A20048CF66 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DC293619189702A20048CF66 /* UIKit.framework */; };
@@ -53,6 +53,8 @@
 		DC293620189702A20048CF66 /* BoatMessagingTests-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "BoatMessagingTests-Info.plist"; sourceTree = "<group>"; };
 		DC293622189702A20048CF66 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		DC293624189702A20048CF66 /* BoatMessagingTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BoatMessagingTests.m; sourceTree = "<group>"; };
+		DC29362E189702DB0048CF66 /* rocketbootstrap.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rocketbootstrap.h; sourceTree = "<group>"; };
+		DC29362F189702DB0048CF66 /* bootstrap.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bootstrap.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -110,6 +112,8 @@
 		DC29360A189702A20048CF66 /* BoatMessaging */ = {
 			isa = PBXGroup;
 			children = (
+				DC29362E189702DB0048CF66 /* rocketbootstrap.h */,
+				DC29362F189702DB0048CF66 /* bootstrap.h */,
 				DC29360D189702A20048CF66 /* BoatMessaging.h */,
 				DC29360F189702A20048CF66 /* BoatMessaging.m */,
 				DC29360B189702A20048CF66 /* Supporting Files */,

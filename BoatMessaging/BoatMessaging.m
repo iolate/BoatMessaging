@@ -123,28 +123,12 @@ NSDictionary* BMachMResponseToDictionary(BMachResponseBuffer *buffer)
 		CFRelease(data);
 	}
 	BMachResponseBufferFree(buffer);
+    
+    if (![result isKindOfClass:[NSDictionary class]]) {
+        return @{@"UnknownType": result};
+    }
+    
 	return result;
-}
-
-
-mach_port_t BMachGetServerPort(NSString* serverName) {
-    mach_port_t selfTask = mach_task_self();
-    
-    // Lookup remote port
-    mach_port_t bootstrap = MACH_PORT_NULL;
-    task_get_bootstrap_port(selfTask, &bootstrap);
-    
-    const char* utf8String = [serverName UTF8String];
-    size_t len = strlen(utf8String) + 1;
-    char server_name[len];
-    memcpy(server_name, utf8String, len);
-    
-    mach_port_t server_port = MACH_PORT_NULL;
-    
-    if (rocketbootstrap_look_up(bootstrap, server_name, &server_port))
-        return MACH_PORT_NULL;
-    
-    return server_port;
 }
 
 mach_msg_return_t BMachSendMessage(mach_msg_header_t *msg, mach_msg_option_t option, mach_msg_size_t send_size, mach_msg_size_t rcv_size, mach_port_name_t rcv_name, mach_msg_timeout_t timeout) {
@@ -166,22 +150,22 @@ static void machCallback(CFMachPortRef port, void *bytes, CFIndex size, void *in
     NSData* data = (__bridge NSData*)BMachMessageGetData(message);
     BMachMessageType type = message->head.msgh_id;
     BoatMessagingCallBack callback = info;
+    NSDictionary* dic = [NSPropertyListSerialization propertyListFromData:data mutabilityOption:0 format:NULL errorDescription:NULL];
     
     if (type == BMachClientConnect) {
         mach_port_t client_port = message->head.msgh_remote_port;
-        NSString* bundleId = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-        NSDictionary* dic = @{@"BundleId": bundleId, @"port": [NSNumber numberWithUnsignedInt:client_port]};
+        NSString* bundleId = dic[@"bundleId"];
+        NSDictionary* userInfo = dic[@"userInfo"] ?: nil;
+        NSDictionary* dic = userInfo ? @{@"bundleId": bundleId, @"port": [NSNumber numberWithUnsignedInt:client_port], @"userInfo": userInfo} : @{@"bundleId": bundleId, @"port": [NSNumber numberWithUnsignedInt:client_port]};
         callback(port, type, dic);
-        [bundleId release];
     }else if (type == BMachOneWayMessage) {
-        NSDictionary* dic = [NSPropertyListSerialization propertyListFromData:data mutabilityOption:0 format:NULL errorDescription:NULL];
+        
         
         callback(port, type, dic);
     }else if (type == BMachTwoWayMessage) {
         mach_port_t reply_port = message->head.msgh_remote_port;
         if (reply_port == MACH_PORT_NULL) return;
         
-        NSDictionary* dic = [NSPropertyListSerialization propertyListFromData:data mutabilityOption:0 format:NULL errorDescription:NULL];
         NSDictionary* reply = callback(port, type, dic);
         
         NSData* nsData = reply ? [NSPropertyListSerialization dataFromPropertyList:reply format:NSPropertyListBinaryFormat_v1_0 errorDescription:NULL] : nil;
@@ -207,6 +191,8 @@ static void machCallback(CFMachPortRef port, void *bytes, CFIndex size, void *in
             mach_port_mod_refs(mach_task_self(), reply_port, MACH_PORT_RIGHT_SEND_ONCE, -1);
         }
     }
+    
+    [data release];
 }
 
 #pragma mark -
@@ -233,10 +219,51 @@ CFMachPortRef BoatMessagingStartServer(NSString* serverName, BoatMessagingCallBa
     return machPort;
 }
 
-BOOL BoatMessagingClientConnectToServer(NSString* serverName, BoatMessagingCallBack callback) {
-    mach_port_t server_port = BMachGetServerPort(serverName);
+void BoatMessagingInvalidatePort(CFMachPortRef machPort) {
+    if (machPort == NULL) return;
+    
+    if (CFMachPortIsValid(machPort)) {
+        CFMachPortInvalidate(machPort);
+    }
+}
+
+BOOL BoatMessagingPortIsValid(mach_port_t port) {
+    if (port == MACH_PORT_NULL) return NO;
+    
+    CFMachPortRef machPort = CFMachPortCreateWithPort(kCFAllocatorDefault, port, NULL, NULL, NULL);
+    if (machPort == nil) return NO;
+    
+    BOOL valid = CFMachPortIsValid(machPort);
+    
+    CFRelease(machPort);
+    
+    return valid;
+}
+
+mach_port_t BoatMessagingGetServerPort(NSString* serverName) {
+    mach_port_t selfTask = mach_task_self();
+    
+    // Lookup remote port
+    mach_port_t bootstrap = MACH_PORT_NULL;
+    task_get_bootstrap_port(selfTask, &bootstrap);
+    
+    const char* utf8String = [serverName UTF8String];
+    size_t len = strlen(utf8String) + 1;
+    char server_name[len];
+    memcpy(server_name, utf8String, len);
+    
+    mach_port_t server_port = MACH_PORT_NULL;
+    
+    if (rocketbootstrap_look_up(bootstrap, server_name, &server_port))
+        return MACH_PORT_NULL;
+    
+    return server_port;
+}
+
+CFMachPortRef BoatMessagingClientConnectToServer(NSString* serverName, BoatMessagingCallBack callback, NSDictionary* userInfo) {
+    mach_port_t server_port = BoatMessagingGetServerPort(serverName);
     if (server_port == MACH_PORT_NULL)
-        return NO;
+        return NULL;
     
     mach_port_t bootstrap = MACH_PORT_NULL;
 	task_get_bootstrap_port(mach_task_self(), &bootstrap);
@@ -247,7 +274,10 @@ BOOL BoatMessagingClientConnectToServer(NSString* serverName, BoatMessagingCallB
 	mach_port_t port = CFMachPortGetPort(machPort);
     
     NSString* bundleIdentifier = [[NSBundle mainBundle] bundleIdentifier];
-    NSData* nsData = [bundleIdentifier dataUsingEncoding: NSUTF8StringEncoding];
+    
+    NSDictionary* dic = userInfo ? @{@"bundleId": bundleIdentifier, @"userInfo": userInfo} : @{@"bundleId": bundleIdentifier};
+    
+    NSData* nsData = [NSPropertyListSerialization dataFromPropertyList:dic format:NSPropertyListBinaryFormat_v1_0 errorDescription:NULL];
     
     const void* data = [nsData bytes];
     uint32_t length = (uint32_t)[nsData length];
@@ -265,44 +295,15 @@ BOOL BoatMessagingClientConnectToServer(NSString* serverName, BoatMessagingCallB
 	BMachMessageAssignData(message, data, length);
     
     kern_return_t err = BMachSendMessage(&message->head, MACH_SEND_MSG, size, 0, port, MACH_MSG_TIMEOUT_NONE);
-    if (err)
-        return NO;
+    if (err) {
+        CFRelease(machPort);
+        return NULL;
+    }
     
-    return YES;
+    return machPort;
 }
 
-BOOL BoatMessagingClientSendMessages(NSString* serverName, NSDictionary* contents) {
-    if (contents == nil)
-        return NO;
-    
-    mach_port_t server_port = BMachGetServerPort(serverName);
-    if (server_port == MACH_PORT_NULL)
-        return NO;
-    
-    NSData *nsData = [NSPropertyListSerialization dataFromPropertyList:contents format:NSPropertyListBinaryFormat_v1_0 errorDescription:NULL];
-    
-    const void* data = [nsData bytes];
-    uint32_t length = (uint32_t)[nsData length];
-    
-    uint32_t size = BMachBufferSizeForLength(length);
-    int8_t buffer[size];
-	BMachMessage *message = (BMachMessage *)&buffer[0];
-	memset(message, 0, sizeof(BMachMessage));
-	message->head.msgh_id = BMachOneWayMessage;
-	message->head.msgh_size = size;
-	message->head.msgh_local_port = MACH_PORT_NULL;
-	message->head.msgh_reserved = 0;
-	message->head.msgh_bits = MACH_MSGH_BITS(MACH_MSG_TYPE_COPY_SEND, 0);
-	BMachMessageAssignData(message, data, length);
-    
-    kern_return_t err = BMachSendMessage(&message->head, MACH_SEND_MSG, size, 0, MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE);
-    if (err)
-        return NO;
-    
-    return YES;
-}
-
-BOOL BoatMessagingServerSendMessages(mach_port_t port, NSDictionary* contents) {
+BOOL BoatMessagingSendMessage(mach_port_t port, NSDictionary* contents) {
     if (contents == nil)
         return NO;
     
@@ -332,7 +333,7 @@ BOOL BoatMessagingServerSendMessages(mach_port_t port, NSDictionary* contents) {
     return YES;
 }
 
-NSDictionary* BoatMessagingSendTwoWay(mach_port_t remote_port, NSDictionary* contents) {
+NSDictionary* BoatMessagingSendMessageWithReply(mach_port_t remote_port, NSDictionary* contents) {
     if (contents == nil) return nil;
     if (remote_port == MACH_PORT_NULL) return nil;
     
@@ -372,14 +373,4 @@ NSDictionary* BoatMessagingSendTwoWay(mach_port_t remote_port, NSDictionary* con
     mach_port_deallocate(selfTask, replyPort);
     
     return BMachMResponseToDictionary(responseBuffer);
-}
-
-NSDictionary* BoatMessagingClientSendMessagesWithReply(NSString* serverName, NSDictionary* contents) {
-    mach_port_t server_port = BMachGetServerPort(serverName);
-    
-    return BoatMessagingSendTwoWay(server_port, contents);
-}
-
-NSDictionary* BoatMessagingServerSendMessagesWithReply(mach_port_t port, NSDictionary* contents) {
-    return BoatMessagingSendTwoWay(port, contents);
 }

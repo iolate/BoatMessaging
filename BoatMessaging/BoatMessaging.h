@@ -19,19 +19,21 @@ extern "C" {
     } BMachMessageType;
     
     /*
-     BMachClientConnect @{ @"BundleId": NSString*, @"port": mach_port_t }
+     BMachClientConnect @{ @"bundleId": NSString*, @"port": mach_port_t, @"userInfo": NSDictionary }
      */
     typedef NSDictionary* (*BoatMessagingCallBack) (CFMachPortRef machPort, BMachMessageType type, NSDictionary* contents);
     
     CFMachPortRef BoatMessagingStartServer(NSString* serverName, BoatMessagingCallBack callback);
-    BOOL BoatMessagingServerSendMessages(mach_port_t port, NSDictionary* contents);
-    //Reply timeout: 2 seconds
-    NSDictionary* BoatMessagingServerSendMessagesWithReply(mach_port_t port, NSDictionary* contents);
+    mach_port_t BoatMessagingGetServerPort(NSString* serverName);
+    BOOL BoatMessagingPortIsValid(mach_port_t port);
     
-    BOOL BoatMessagingClientConnectToServer(NSString* serverName, BoatMessagingCallBack callback);
-    BOOL BoatMessagingClientSendMessages(NSString* serverName, NSDictionary* contents);
+    CFMachPortRef BoatMessagingClientConnectToServer(NSString* serverName, BoatMessagingCallBack callback, NSDictionary* userInfo);
+    
     //Reply timeout: 2 seconds
-    NSDictionary* BoatMessagingClientSendMessagesWithReply(NSString* serverName, NSDictionary* contents);
+    NSDictionary* BoatMessagingSendMessageWithReply(mach_port_t port, NSDictionary* contents);
+    BOOL BoatMessagingSendMessage(mach_port_t port, NSDictionary* contents);
+    
+    void BoatMessagingInvalidatePort(CFMachPortRef machPort);
     
 #ifdef __cplusplus
 } // extern "C"

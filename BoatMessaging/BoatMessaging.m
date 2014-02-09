@@ -166,12 +166,12 @@ static void machCallback(CFMachPortRef port, void *bytes, CFIndex size, void *in
         mach_port_t reply_port = message->head.msgh_remote_port;
         if (reply_port == MACH_PORT_NULL) return;
         
-        NSDictionary* reply = callback(port, type, dic);
+        NSDictionary* reply = callback(port, type, dic) ?: @{@"error": @"return is nil"};
         
-        NSData* nsData = reply ? [NSPropertyListSerialization dataFromPropertyList:reply format:NSPropertyListBinaryFormat_v1_0 errorDescription:NULL] : nil;
+        NSData* nsData = [NSPropertyListSerialization dataFromPropertyList:reply format:NSPropertyListBinaryFormat_v1_0 errorDescription:NULL];
         
-        const void* data = nsData ? [nsData bytes] : NULL;
-        uint32_t length = nsData ? (uint32_t)[nsData length] : 0;
+        const void* data =  [nsData bytes]; //nsData ? : NULL;
+        uint32_t length = (uint32_t)[nsData length]; //nsData ? (uint32_t)[nsData length] : 0;
         
         uint32_t size = BMachBufferSizeForLength(length);
         uint8_t buffer[size];
@@ -333,7 +333,7 @@ BOOL BoatMessagingSendMessage(mach_port_t port, NSDictionary* contents) {
     return YES;
 }
 
-NSDictionary* BoatMessagingSendMessageWithReply(mach_port_t remote_port, NSDictionary* contents) {
+NSDictionary* BoatMessagingSendMessageWithReplyTimeout(mach_port_t remote_port, NSDictionary* contents, int millisec_timeout) {
     if (contents == nil) return nil;
     if (remote_port == MACH_PORT_NULL) return nil;
     
@@ -364,7 +364,7 @@ NSDictionary* BoatMessagingSendMessageWithReply(mach_port_t remote_port, NSDicti
 	message->head.msgh_bits = MACH_MSGH_BITS(MACH_MSG_TYPE_COPY_SEND, MACH_MSG_TYPE_MAKE_SEND_ONCE);
 	BMachMessageAssignData(message, data, length);
     
-    err = BMachSendMessage(&message->head, MACH_SEND_MSG | MACH_RCV_MSG | MACH_SEND_TIMEOUT | MACH_SEND_INTERRUPT | MACH_RCV_TIMEOUT | MACH_RCV_INTERRUPT, size, sizeof(BMachResponseBuffer), replyPort, 2000); //MACH_MSG_TIMEOUT_NONE
+    err = BMachSendMessage(&message->head, MACH_SEND_MSG | MACH_RCV_MSG | MACH_SEND_TIMEOUT | MACH_SEND_INTERRUPT | MACH_RCV_TIMEOUT | MACH_RCV_INTERRUPT, size, sizeof(BMachResponseBuffer), replyPort, millisec_timeout); //MACH_MSG_TIMEOUT_NONE
     if (err) {
         responseBuffer->message.body.msgh_descriptor_count = 0;
         return nil;
@@ -373,4 +373,9 @@ NSDictionary* BoatMessagingSendMessageWithReply(mach_port_t remote_port, NSDicti
     mach_port_deallocate(selfTask, replyPort);
     
     return BMachMResponseToDictionary(responseBuffer);
+}
+
+
+NSDictionary* BoatMessagingSendMessageWithReply(mach_port_t remote_port, NSDictionary* contents) {
+    return BoatMessagingSendMessageWithReplyTimeout(remote_port, contents, 2000);
 }

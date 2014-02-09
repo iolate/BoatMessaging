@@ -19,7 +19,7 @@ extern "C" {
     } BMachMessageType;
     
     /*
-     BMachClientConnect @{ @"bundleId": NSString*, @"port": mach_port_t, @"userInfo": NSDictionary }
+     BMachClientConnect @{ @"bundleId": NSString*, @"port": [NSNumber unsignedIntValue]:mach_port_t, @"userInfo": NSDictionary }
      */
     typedef NSDictionary* (*BoatMessagingCallBack) (CFMachPortRef machPort, BMachMessageType type, NSDictionary* contents);
     
@@ -31,6 +31,7 @@ extern "C" {
     
     //Reply timeout: 2 seconds
     NSDictionary* BoatMessagingSendMessageWithReply(mach_port_t port, NSDictionary* contents);
+    NSDictionary* BoatMessagingSendMessageWithReplyTimeout(mach_port_t remote_port, NSDictionary* contents, int millisec_timeout);
     BOOL BoatMessagingSendMessage(mach_port_t port, NSDictionary* contents);
     
     void BoatMessagingInvalidatePort(CFMachPortRef machPort);
